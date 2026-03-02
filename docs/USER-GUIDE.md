@@ -1,0 +1,19 @@
+#1 Install dependencies
+ - npm install
+
+#2 Run this to generate keys:
+ - mkdir keys
+ - openssl genrsa -out keys/private.pem 2048
+ - openssl rsa -in keys/private.pem -pubout -out keys/public.pem
+
+#3 Create .env
+ - cp .env.example .env
+
+#4 Start app
+ - npm run start:dev
+
+#5 open swagger on current port (example data are provided)
+ - http://localhost:3000/api-docs
+
+#6 run unit test
+ - npm run test:cov

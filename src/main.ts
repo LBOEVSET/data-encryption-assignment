@@ -7,12 +7,18 @@ import { RequestContextService } from './common/middleware/request-context.servi
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common/pipes/validation.pipe';
 import * as bodyParser from 'body-parser';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const docDescription = fs.readFileSync(
+    path.join(process.cwd(), 'docs/USER-GUIDE.md'),
+    'utf8'
+  );
   const config = new DocumentBuilder()
     .setTitle('Data Encryption API')
-    .setDescription('API for encrypting and decrypting data using AES-256-CBC algorithm')
+    .setDescription(docDescription)
     .setVersion('1.0')
     .addTag('encryption')
     .addServer('/api/v1')
