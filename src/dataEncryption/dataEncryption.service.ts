@@ -1,58 +1,64 @@
 import {
   Injectable,
 } from '@nestjs/common';
-import * as crypto from 'crypto';
+import * as forge from 'node-forge';
 import * as fs from 'fs';
 
 @Injectable()
 export class DataEncryptionService {
 
-  private publicKey: string = fs.readFileSync('keys/public.pem', 'utf8');
-  private privateKey: string = fs.readFileSync('keys/private.pem', 'utf8');
+  private publicKey = forge.pki.publicKeyFromPem(
+    fs.readFileSync('keys/public.pem', 'utf8')
+  );
 
-  generateAESKey(): Buffer {
-    return crypto.randomBytes(32);
+  private privateKey = forge.pki.privateKeyFromPem(
+    fs.readFileSync('keys/private.pem', 'utf8')
+  );
+
+  generateAESKey(): string {
+    return forge.random.getBytesSync(32);
   }
 
-  encryptAES(payload: string, key: Buffer) {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(payload, 'utf8', 'base64');
-    encrypted += cipher.final('base64');
+  encryptAES(payload: string, key: string) {
+    const iv = forge.random.getBytesSync(16);
 
-    return iv.toString('base64') + ':' + encrypted;
+    const cipher = forge.cipher.createCipher('AES-CBC', key);
+    cipher.start({ iv });
+    cipher.update(forge.util.createBuffer(payload, 'utf8'));
+    cipher.finish();
+
+    const encrypted = cipher.output.getBytes();
+
+    return forge.util.encode64(iv) + ':' + forge.util.encode64(encrypted);
   }
 
-  decryptAES(data: string, key: Buffer) {
+  decryptAES(data: string, key: string) {
     const [ivBase64, encryptedData] = data.split(':');
-    const iv = Buffer.from(ivBase64, 'base64');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
-    decrypted += decipher.final('utf8');
 
-    return decrypted;
+    const iv = forge.util.decode64(ivBase64);
+    const encrypted = forge.util.decode64(encryptedData);
+
+    const decipher = forge.cipher.createDecipher('AES-CBC', key);
+    decipher.start({ iv });
+    decipher.update(forge.util.createBuffer(encrypted));
+    decipher.finish();
+
+    return decipher.output.toString('utf8');
   }
-  
-  encryptRSA(data: Buffer) {
-    return crypto.publicEncrypt(
-      {
-        key: this.publicKey,
-        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-        oaepHash: 'sha256',
-      },
-      data,
-    ).toString('base64');
+
+  encryptRSA(data: string) {
+    const encrypted = this.publicKey.encrypt(data, 'RSA-OAEP', {
+      md: forge.md.sha256.create(),
+    });
+
+    return forge.util.encode64(encrypted);
   }
 
   decryptRSA(encryptedData: string) {
-    return crypto.privateDecrypt(
-      {
-        key: this.privateKey,
-        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-        oaepHash: 'sha256',
-      },
-      Buffer.from(encryptedData, 'base64'),
-    );
-  }
+    const decoded = forge.util.decode64(encryptedData);
 
+    return this.privateKey.decrypt(decoded, 'RSA-OAEP', {
+      md: forge.md.sha256.create(),
+    });
+  }
 }
